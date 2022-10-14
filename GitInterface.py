@@ -5,6 +5,9 @@ import os
 import base64
 from PIL import Image
 import sys
+from tkinter import *
+import threading
+import time
 
 
 class GitApiParams:
@@ -45,6 +48,31 @@ class GitApiParams:
         return info
 
 
+def setup():
+    try:
+        f = open("config.json")
+        config = json.load(f)
+        # =================== variables =============================
+        url = config.get("url")
+        name = config.get("name")
+        token = config.get("token")
+        who_work_now = config.get("who_work_now")
+        who_work_now_mail = config.get("who_work_now_mail")
+        fnames = find_fls(
+            ""
+        )  # можно задать в первом параметре поиск в какой директории производить а вторым какое расширение файла
+        # ===========================================================
+        workspace = GitApiParams(
+            url, name, token, who_work_now, who_work_now_mail, fnames
+        )
+        return workspace
+
+    except Exception as e:
+        print("Handle this: ")
+        print(e)
+        exit()
+
+
 def file_to_base64(fname: str):
     """
     переводит файл в base64
@@ -81,7 +109,7 @@ def find_fls(std_ext=".jpg", std_dir="raw_pic"):
         return flist
 
 
-def download_files(url, val=1):
+def download_files(url, val=0):
     """
     image_file_path - path to save of file
     url - ссылка на директорию где нужно качать
@@ -399,86 +427,3 @@ def load_git_content(env):
             __dirs.append(i.get("url"))
             content.update({"dirs": __dirs})
     return content
-
-
-'''
-РАБОТАЕТ НО ХУЕВО ДОПИЛИТЬ НАДО ОШИБКА В СЧИТЫВАНИИЕ ФАЙЛОВ В ДИРЕКТОРИИ 
-НУЖНО СЧИТАТЬ ЧТО НАХОДИТСЯ НЕ В params.fnames А В ДИРЕКТОРИИ url
-def delete(params: GitApiParams, val=0):
-
-    Удаляет первый элемент в директории val = 0  
-     Если name = '' val = n удаляет первые n элементы
-
-    if val < 0:
-        print("val error")
-        exit()
-    try:
-        for i in req.json():
-            if i.get("type") == "file":
-
-        if val <= 1:
-            sha = ""
-            for i in params.fnames:
-                fname = i
-                print(fname)
-                url = params.url + "/" + fname
-                resp = rq.get(url, auth=(params.name, params.token))
-                sha = resp.json().get("sha")
-                if sha is not None:
-                    break
-
-            print(url + " " + sha)
-            fields = {
-                "message": "commit from delete()",
-                "committer": {
-                    "name": params.who_work_now,
-                    "email": params.who_work_now_mail,
-                },
-                "sha": sha,
-            }
-            resp = rq.delete(
-                url, auth=(params.name, params.token), data=json.dumps(fields)
-            )
-
-            print("Deleted: " + fname)
-
-        elif val > 0:
-            for j in range(val):
-                sha = ""
-                for i in params.fnames:
-                    fname = i
-                    url = params.url + "/" + fname
-                    resp = rq.get(url, auth=(params.name, params.token))
-                    sha = resp.json().get("sha")
-                    if sha is not None:
-                        break
-
-                print(url + " " + sha)
-                fields = {
-                    "message": "commit from delete()",
-                    "committer": {
-                        "name": params.who_work_now,
-                        "email": params.who_work_now_mail,
-                    },
-                    "sha": sha,
-                }
-                resp = rq.delete(
-                    url, auth=(params.name, params.token), data=json.dumps(fields)
-                )
-                print("Deleted: " + fname)
-    except Exception as e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print("============Error==============")
-        print(e)
-        print(exc_type, fname, exc_tb.tb_lineno)
-        print("===============================")
-
-"""
-Заметки
-write json to file
-    with open("res.json","w+") as f:
-        json.dump(rs.text, f)
-path = os.getcwd() - returns own path
-"""
-'''
