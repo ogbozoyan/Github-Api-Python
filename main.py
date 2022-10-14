@@ -13,4 +13,4 @@ if __name__ == "__main__":
     env = setup()
     add_by_name(env, "main.py")
     add_by_name(env, "GitInterface.py")
-
+    print(env.content)
