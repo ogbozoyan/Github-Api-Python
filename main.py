@@ -1,5 +1,6 @@
-from GitInterface import *
-
+import gitinterface as gi
+import os
+import threading
 
 def open_max_prog():
     os.startfile("DatasetCollector_.exe")
@@ -10,7 +11,5 @@ def open_max_prog():
 
 if __name__ == "__main__":
 
-    env = setup()
-    add_by_name(env, "main.py")
-    add_by_name(env, "GitInterface.py")
-    print(env.content)
+    env = gi.setup()
+    gi.add_by_name(env,"main.py")
