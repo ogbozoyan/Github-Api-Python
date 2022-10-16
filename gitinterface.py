@@ -18,13 +18,13 @@ class GitApiParams:
     content: dict
 
     def __init__(
-        self,
-        url="",
-        name="",
-        token="",
-        who_work_now="",
-        who_work_now_mail="",
-        fnames=[],
+            self,
+            url="",
+            name="",
+            token="",
+            who_work_now="",
+            who_work_now_mail="",
+            fnames=[],
     ):
         self.url = url
         self.name = name
@@ -65,7 +65,6 @@ def setup():
         return workspace
 
     except Exception as e:
-        print("Handle this: ")
         print(e)
         exit()
 
@@ -79,14 +78,8 @@ def file_to_base64(fname: str):
             base64_file = base64.b64encode(file.read())
         return base64_file.decode("utf-8")
     except Exception as e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print("============Error==============")
         print(e)
-        print(exc_type, fname, exc_tb.tb_lineno)
-        print("===============================")
         exit()
-
 
 def find_fls(std_ext=".jpg", std_dir="raw_pic"):
     """
@@ -119,19 +112,19 @@ def download_files(url, val=0):
             assert False, "Status code error: {}.".format(r.status_code)
         r = r.json()
         fls_link_to_download = []
-        meta = {}
         for i in r:
-            meta.update({"name": i.get("path"), "download_url": i.get("download_url")})
-            fls_link_to_download.append(meta)
+            fls_link_to_download.append({"name": i.get("path"), "download_url": i.get("download_url")})
             break
         r = rq.get(fls_link_to_download[0].get("download_url"))
         try:
             with Image.open(io.BytesIO(r.content)) as im:
                 im = im.convert("RGB")
                 im.save(fls_link_to_download[0].get("name"))
+                print(f"Downloaded: {i.get('name')}")
         except Exception:
             with open(fls_link_to_download[0].get("name"), "wb") as f:
                 f.write(r.content)
+            print(f"Downloaded: {i.get('name')}")
 
     elif val == 0:
         r = rq.get(url)
@@ -150,15 +143,44 @@ def download_files(url, val=0):
                 with Image.open(io.BytesIO(r.content)) as im:
                     im = im.convert("RGB")
                     im.save(i.get("name"))
-                    print("Downloaded: " + i.get("name"))
+                    print(f"Downloaded: {i.get('name')}")
                     count += 1
             except Exception:
                 with open(i.get("name"), "wb") as f:
                     f.write(r.content)
-                print("Downloaded: " + i.get("name"))
+                print(f"Downloaded: {i.get('name')}")
 
 
-def upload(env: GitApiParams, mode=0, sha=""):
+def reupload(url, fname, name, token, who_work_now, who_work_now_mail):
+    try:
+        fields = {
+        "message": f"commit from upload_by_name({fname})",
+        "committer": {
+            "name": who_work_now,
+            "email": who_work_now_mail,
+        },
+        "content": file_to_base64(fname),
+        "sha": str(
+            rq.get(url, auth=(name, token)).json().get("sha")
+        ),
+        }
+        f_resp = rq.put(
+            url,
+            auth=(name, token),
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(fields),
+        )
+        if f_resp.ok:
+            print(f"Uploaded {fname} to {url}")
+        else:
+            print(fname)
+            print(f_resp.status_code)
+    except Exception as e:
+        print(e)
+        exit()
+
+
+def upload(env: GitApiParams, mode=0):
     """
     upload - с помощью put запроса начинает отправлять все,
     что находится в env.fnames
@@ -179,7 +201,7 @@ def upload(env: GitApiParams, mode=0, sha=""):
                         "email": env.who_work_now_mail,
                     },
                     "content": file_to_base64(fname),
-                    "sha": sha,
+                    "sha": '',
                 }
 
                 f_resp = rq.put(
@@ -189,32 +211,10 @@ def upload(env: GitApiParams, mode=0, sha=""):
                     data=json.dumps(fields),
                 )
                 if f_resp.ok:
-                    print("Uploaded " + fname + " to " + url)
-                elif f_resp.status_code == 409:
-                    fields = {
-                        "message": f"commit from upload_by_name({fname})",
-                        "committer": {
-                            "name": env.who_work_now,
-                            "email": env.who_work_now_mail,
-                        },
-                        "content": file_to_base64(fname),
-                        "sha": str(
-                            rq.get(url, auth=(env.name, env.token)).json().get("sha")
-                        ),
-                    }
-                    f_resp = rq.put(
-                        url,
-                        auth=(env.name, env.token),
-                        headers={"Content-Type": "application/json"},
-                        data=json.dumps(fields),
-                    )
-                    if f_resp.ok:
-                        print("Uploaded " + fname + " to " + url)
-                    else:
-                        print(fname)
-                        print(f_resp.status_code)
+                    print(f"Uploaded {fname} to {url}")
+                elif f_resp.status_code == 409: # 409 - file already exist
+                    reupload(url,fname,env.name,env.token,env.who_work_now,env.who_work_now_mail)
                 else:
-                    # 409 - file already exist
                     print(fname)
                     print(f_resp.status_code)
         else:
@@ -230,7 +230,7 @@ def upload(env: GitApiParams, mode=0, sha=""):
                             "email": env.who_work_now_mail,
                         },
                         "content": file_to_base64(fname),
-                        "sha": sha,
+                        "sha": '',
                     }
 
                     f_resp = rq.put(
@@ -240,32 +240,9 @@ def upload(env: GitApiParams, mode=0, sha=""):
                         data=json.dumps(fields),
                     )
                     if f_resp.ok:
-                        print("Uploaded " + fname + " to " + url)
+                        print(f"Uploaded {fname} to {url}")
                     elif f_resp.status_code == 409:
-                        fields = {
-                            "message": f"commit from upload_by_name({fname})",
-                            "committer": {
-                                "name": env.who_work_now,
-                                "email": env.who_work_now_mail,
-                            },
-                            "content": file_to_base64(fname),
-                            "sha": str(
-                                rq.get(url, auth=(env.name, env.token))
-                                .json()
-                                .get("sha")
-                            ),
-                        }
-                        f_resp = rq.put(
-                            url,
-                            auth=(env.name, env.token),
-                            headers={"Content-Type": "application/json"},
-                            data=json.dumps(fields),
-                        )
-                        if f_resp.ok:
-                            print("Uploaded " + fname + " to " + url)
-                        else:
-                            print(fname)
-                            print(f_resp.status_code)
+                        reupload(url,fname,env.name,env.token,env.who_work_now,env.who_work_now_mail)
                     else:
                         # 409 - file already exist
                         print(fname)
@@ -273,13 +250,7 @@ def upload(env: GitApiParams, mode=0, sha=""):
                 else:
                     break
     except Exception as e:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print("============Error==============")
         print(e)
-        print(exc_type, fname, exc_tb.tb_lineno)
-        print("===============================")
-
 
 def upload_by_name(env: GitApiParams, name):
     """
@@ -310,28 +281,7 @@ def upload_by_name(env: GitApiParams, name):
             if f_resp.ok:
                 print("Uploaded " + fname + " to " + url)
             elif f_resp.status_code == 409:
-                fields = {
-                    "message": f"commit from upload_by_name({fname})",
-                    "committer": {
-                        "name": env.who_work_now,
-                        "email": env.who_work_now_mail,
-                    },
-                    "content": file_to_base64(fname),
-                    "sha": str(
-                        rq.get(url, auth=(env.name, env.token)).json().get("sha")
-                    ),
-                }
-                f_resp = rq.put(
-                    url,
-                    auth=(env.name, env.token),
-                    headers={"Content-Type": "application/json"},
-                    data=json.dumps(fields),
-                )
-                if f_resp.ok:
-                    print("Uploaded " + fname + " to " + url)
-                else:
-                    print(fname)
-                    print(f_resp.status_code)
+                reupload(url,fname,env.name,env.token,env.who_work_now,env.who_work_now_mail)
             else:
                 print(fname)
                 print(f_resp.status_code)
