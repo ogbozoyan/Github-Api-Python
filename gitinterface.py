@@ -6,7 +6,6 @@ import os
 import base64
 from PIL import Image
 import sys
-from inspect import currentframe, getframeinfo
 import PySimpleGUI as sg
 from sqlalchemy import values
 from sympy import EX
@@ -41,6 +40,7 @@ class GitApiParams:
         self.content = load_git_content(self)
         self.downloadurl = self.content.get("dirs")
         self.downloadurl = "".join(self.downloadurl)
+        self.downloadurl = self.downloadurl[:-9]
 
     def __str__(self):
         return (
@@ -53,6 +53,8 @@ class GitApiParams:
             f"Download url: {self.downloadurl} \n"
         )
 
+def fixpath(path):
+    return os.path.expanduser(path)
 
 def setup():
     try:
@@ -67,6 +69,7 @@ def setup():
             config.get("who_work_now_mail"),
             find_fls(""),
         )
+
         return workspace
 
     except Exception as e:
@@ -100,69 +103,55 @@ def find_fls(std_ext=".jpg", std_dir="raw_pic"):
     """
     if std_ext != "":
         flist = []
+        tmplist = []
         for file in os.listdir(std_dir):
             if file.endswith(std_ext):
-                flist.append(os.path.join(std_dir, file))
+                tmplist.append(os.path.join(std_dir, file))
+        for i in range(len(tmplist)):
+            a = str(tmplist[i])
+            a = a.replace("\\","/")
+            flist.append(a)
         return flist
     else:
         flist = []
+        tmplist = []
         for file in os.listdir(std_dir):
-            flist.append(os.path.join(std_dir, file))
+            tmplist.append(os.path.join(std_dir, file))
+        for i in range(len(tmplist)):
+            a = str(tmplist[i])
+            a = a.replace("\\","/")
+            flist.append(a)
         return flist
 
-
-def download_files(url, val=0):
+def download_files(url,name,token):
     """
     image_file_path - path to save of file
     url - ссылка на директорию где нужно качать
     val - количество файлов,если  = 1, то качает первый файл в директории
     если = 0 то качает все
     """
-    if val == 1:
-        r = rq.get(url)
-        if r.status_code != rq.codes.ok:
-            assert False, "Status code error: {}.".format(r.status_code)
-        r = r.json()
-        fls_link_to_download = []
-        for i in r:
-            fls_link_to_download.append(
-                {"name": i.get("path"), "download_url": i.get("download_url")}
-            )
-            break
-        r = rq.get(fls_link_to_download[0].get("download_url"))
+    r = rq.get(url,auth=(name, token))
+    count = 1
+    if r.status_code != rq.codes.ok:
+        assert False, "Status code error: {}.".format(r.status_code)
+    r = r.json()
+    fls_link_to_download = []
+    for i in r:
+        fls_link_to_download.append(
+            {"name": i.get("path"), "download_url": i.get("download_url")}
+        )
+    for i in fls_link_to_download:
+        r = rq.get(i.get("download_url"))
         try:
             with Image.open(io.BytesIO(r.content)) as im:
                 im = im.convert("RGB")
-                im.save(fls_link_to_download[0].get("name"))
+                im.save(i.get("name"))
                 print(f"Downloaded: {i.get('name')}")
+                count += 1
         except Exception:
-            with open(fls_link_to_download[0].get("name"), "wb") as f:
+            with open(i.get("name"), "wb") as f:
                 f.write(r.content)
             print(f"Downloaded: {i.get('name')}")
-
-    elif val == 0:
-        r = rq.get(url)
-        count = 1
-        if r.status_code != rq.codes.ok:
-            assert False, "Status code error: {}.".format(r.status_code)
-        r = r.json()
-        fls_link_to_download = []
-        for i in r:
-            fls_link_to_download.append(
-                {"name": i.get("path"), "download_url": i.get("download_url")}
-            )
-        for i in fls_link_to_download:
-            r = rq.get(i.get("download_url"))
-            try:
-                with Image.open(io.BytesIO(r.content)) as im:
-                    im = im.convert("RGB")
-                    im.save(i.get("name"))
-                    print(f"Downloaded: {i.get('name')}")
-                    count += 1
-            except Exception:
-                with open(i.get("name"), "wb") as f:
-                    f.write(r.content)
-                print(f"Downloaded: {i.get('name')}")
 
 
 def reupload(url, fname, name, token, who_work_now, who_work_now_mail):
@@ -191,7 +180,7 @@ def reupload(url, fname, name, token, who_work_now, who_work_now_mail):
         print(e)
 
 
-def upload(env: GitApiParams, mode=0):
+def upload(env: GitApiParams):
     """
     upload - с помощью put запроса начинает отправлять все,
     что находится в env.fnames
@@ -202,10 +191,9 @@ def upload(env: GitApiParams, mode=0):
     Если успешно - выводит сообщение об этом
     """
     try:
-        if mode == 0:
-            for fname in env.fnames:
-                url = env.url + "/" + fname  # makes dir if fname has dir
-                fields = {
+        for fname in env.fnames:
+            url = env.url + "/" + fname  # makes dir if fname has dir
+            fields = {
                     "message": "commit from upload()",
                     "committer": {
                         "name": env.who_work_now,
@@ -214,16 +202,16 @@ def upload(env: GitApiParams, mode=0):
                     "content": file_to_base64(fname),
                     "sha": "",
                 }
-                f_resp = rq.put(
+            f_resp = rq.put(
                     url,
                     auth=(env.name, env.token),
                     headers={"Content-Type": "application/json"},
                     data=json.dumps(fields),
                 )
-                if f_resp.ok:
-                    print(f"Uploaded {fname} to {url}")
-                elif f_resp.status_code == 409:  # 409 - file already exist
-                    reupload(
+            if f_resp.ok:
+                print(f"Uploaded {fname} to {url}")
+            elif f_resp.status_code != f_resp.ok:
+                reupload(
                         url,
                         fname,
                         env.name,
@@ -231,47 +219,9 @@ def upload(env: GitApiParams, mode=0):
                         env.who_work_now,
                         env.who_work_now_mail,
                     )
-                else:
+            else:
                     print(fname)
                     print(f_resp.status_code)
-        else:
-            count = 0
-            for fname in env.fnames:
-                if count < mode:
-                    count += 1
-                    url = env.url + "/" + fname  # makes dir if fname has dir
-                    fields = {
-                        "message": "commit from upload()",
-                        "committer": {
-                            "name": env.who_work_now,
-                            "email": env.who_work_now_mail,
-                        },
-                        "content": file_to_base64(fname),
-                        "sha": "",
-                    }
-
-                    f_resp = rq.put(
-                        url,
-                        auth=(env.name, env.token),
-                        headers={"Content-Type": "application/json"},
-                        data=json.dumps(fields),
-                    )
-                    if f_resp.ok:
-                        print(f"Uploaded {fname} to {url}")
-                    elif f_resp.status_code == 409:
-                        reupload(
-                            url,
-                            fname,
-                            env.name,
-                            env.token,
-                            env.who_work_now,
-                            env.who_work_now_mail,
-                        )
-                    else:
-                        print(fname)
-                        print(f_resp.status_code)
-                else:
-                    break
     except Exception as e:
         print(e)
 
@@ -327,7 +277,7 @@ def add(params: GitApiParams) -> None:
     add(env,val- сколько файлов добавить)
     """
     try:
-        return upload(params, 0)
+        return upload(params)
     except Exception as e:
         print(e)
 
@@ -369,7 +319,6 @@ def load_git_content(env):
     except Exception as e:
         print(e)
 
-
 def start(env: Any):
     try:
         cpp_proc = Process(target=open_cpp_prog)
@@ -385,18 +334,12 @@ def start(env: Any):
         window = sg.Window("Dataset control", layout)
         while True:
             event, values = window.read()
-            print(type(values))
             if event == sg.WIN_CLOSED or event == "Close":
                 break
             elif event == "Upload":
-                #print(f"upload")
                 add(env)
             elif event == "Download":
-                #print("download")
-                download_files(env.downloadurl)
-            #elif event == "Upload" and values.get("0") != "":
-                #print(f"upload {values[0]}")
-                 #add_by_name(env,values[0])
+                download_files(env.downloadurl,env.name,env.token)
 
         cpp_proc.join()
         window.close()
