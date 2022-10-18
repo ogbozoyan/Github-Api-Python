@@ -1,15 +1,14 @@
 import gitinterface as gi
 import os
-import threading
-
-def open_max_prog():
-    os.startfile("DatasetCollector_.exe")
-    max_thread = threading.Thread(target=open_max_prog)
-    max_thread.start()
-    max_thread.join()
+from multiprocessing import Process
 
 
 if __name__ == "__main__":
+    
+    env = gi.GitApiParams
 
-    env = gi.setup()
-    gi.add_by_name(env,"main.py")
+    py_proc = Process(target=gi.start,args=(env,))
+    py_proc.start()
+ 
+
+    py_proc.join()
