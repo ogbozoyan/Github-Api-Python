@@ -12,22 +12,25 @@ from sqlalchemy import values
 from sympy import EX
 from multiprocessing import Process
 
+
 class GitApiParams:
     """
     just for params
     content - repo page
     """
+
     token: str
     content: dict
     downloadurl: str
+
     def __init__(
-            self,
-            url="",
-            name="",
-            token="",
-            who_work_now="",
-            who_work_now_mail="",
-            fnames=[],
+        self,
+        url="",
+        name="",
+        token="",
+        who_work_now="",
+        who_work_now_mail="",
+        fnames=[],
     ):
         self.url = url
         self.name = name
@@ -37,7 +40,7 @@ class GitApiParams:
         self.fnames = fnames
         self.content = load_git_content(self)
         self.downloadurl = self.content.get("dirs")
-        self.downloadurl = ''.join(self.downloadurl)
+        self.downloadurl = "".join(self.downloadurl)
 
     def __str__(self):
         return (
@@ -70,11 +73,13 @@ def setup():
         print(e)
         exit()
 
+
 def open_cpp_prog():
     try:
         os.startfile("DatasetCollector_.exe")
     except Exception as e:
         print(e)
+
 
 def file_to_base64(fname: str):
     """
@@ -86,7 +91,8 @@ def file_to_base64(fname: str):
         return base64_file.decode("utf-8")
     except Exception as e:
         print(e)
-        
+
+
 def find_fls(std_ext=".jpg", std_dir="raw_pic"):
     """
     Ищет в std_dir файлы расширения jpg, можно менять
@@ -103,6 +109,7 @@ def find_fls(std_ext=".jpg", std_dir="raw_pic"):
         for file in os.listdir(std_dir):
             flist.append(os.path.join(std_dir, file))
         return flist
+
 
 def download_files(url, val=0):
     """
@@ -157,6 +164,7 @@ def download_files(url, val=0):
                     f.write(r.content)
                 print(f"Downloaded: {i.get('name')}")
 
+
 def reupload(url, fname, name, token, who_work_now, who_work_now_mail):
     try:
         fields = {
@@ -181,7 +189,7 @@ def reupload(url, fname, name, token, who_work_now, who_work_now_mail):
             print(f_resp.status_code)
     except Exception as e:
         print(e)
-        
+
 
 def upload(env: GitApiParams, mode=0):
     """
@@ -260,13 +268,13 @@ def upload(env: GitApiParams, mode=0):
                             env.who_work_now_mail,
                         )
                     else:
-                        # 409 - file already exist
                         print(fname)
                         print(f_resp.status_code)
                 else:
                     break
     except Exception as e:
         print(e)
+
 
 def upload_by_name(env: GitApiParams, name):
     """
@@ -311,7 +319,8 @@ def upload_by_name(env: GitApiParams, name):
     except Exception as e:
         print(e)
 
-def add(params:GitApiParams) -> None:
+
+def add(params: GitApiParams) -> None:
     """
     Простой вызывает upload
     использовать:
@@ -320,9 +329,10 @@ def add(params:GitApiParams) -> None:
     try:
         return upload(params, 0)
     except Exception as e:
-      print(e)
+        print(e)
 
-def add_by_name(params:GitApiParams, name:str) -> None:
+
+def add_by_name(params: GitApiParams, name: str) -> None:
     """
     все очень просто
     вызывает upload_by_name, нужно только задать имя файла которое
@@ -335,11 +345,9 @@ def add_by_name(params:GitApiParams, name:str) -> None:
     except Exception as e:
         print(e)
 
+
 def load_git_content(env):
     """
-    load_git_content - обновляет контент на текущей env.url, автоматический парсит
-    все данные при первом объявлении объекта класса
-    Дальнейшее использование:
     env.content = load_git_content(env)
     __files - файлы в текущей директории гита
     __dirs - директории
@@ -361,32 +369,35 @@ def load_git_content(env):
     except Exception as e:
         print(e)
 
+
 def start(env: Any):
     try:
         cpp_proc = Process(target=open_cpp_prog)
         cpp_proc.start()
 
         env = setup()
-        
-        sg.theme('DarkAmber')   
-        layout = [ [sg.Text('Name of file'), sg.InputText()], 
-                [sg.Button("Upload"),sg.Button("Download"),sg.Button('Close')] ]
-        window = sg.Window('Dataset control', layout)
+
+        sg.theme("DarkAmber")
+        layout = [
+            [sg.Text("Name of file"), sg.InputText()],
+            [sg.Button("Upload"), sg.Button("Download"), sg.Button("Close")],
+        ]
+        window = sg.Window("Dataset control", layout)
         while True:
-            event,values = window.read()
+            event, values = window.read()
             print(type(values))
-            if event == sg.WIN_CLOSED or event == 'Close': 
+            if event == sg.WIN_CLOSED or event == "Close":
                 break
             elif event == "Upload":
-                print(f"upload")
-                #add(env)
+                #print(f"upload")
+                add(env)
             elif event == "Download":
-                print("download")
-                #download_files(env.downloadurl)
-            elif event == "Upload" and values.get('0') != '':
-                print(f"upload {values[0]}")
-                #add_by_name(env,values[0])
-        
+                #print("download")
+                download_files(env.downloadurl)
+            #elif event == "Upload" and values.get("0") != "":
+                #print(f"upload {values[0]}")
+                 #add_by_name(env,values[0])
+
         cpp_proc.join()
         window.close()
     except Exception as e:
