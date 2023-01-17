@@ -61,7 +61,7 @@ def setup():
         f = open("config.json")
         config = json.load(f)
 
-        workspace = GitApiParams(
+        return GitApiParams(
             config.get("url"),
             config.get("name"),
             config.get("token"),
@@ -69,9 +69,6 @@ def setup():
             config.get("who_work_now_mail"),
             find_fls(""),
         )
-
-        return workspace
-
     except Exception as e:
         print(e)
         exit()
@@ -101,27 +98,22 @@ def find_fls(std_ext=".jpg", std_dir="raw_pic"):
     Ищет в std_dir файлы расширения jpg, можно менять
     и возвращает список flist
     """
+    flist = []
+    tmplist = []
     if std_ext != "":
-        flist = []
-        tmplist = []
-        for file in os.listdir(std_dir):
-            if file.endswith(std_ext):
-                tmplist.append(os.path.join(std_dir, file))
-        for i in range(len(tmplist)):
-            a = str(tmplist[i])
-            a = a.replace("\\","/")
-            flist.append(a)
-        return flist
+        tmplist.extend(
+            os.path.join(std_dir, file)
+            for file in os.listdir(std_dir)
+            if file.endswith(std_ext)
+        )
     else:
-        flist = []
-        tmplist = []
-        for file in os.listdir(std_dir):
-            tmplist.append(os.path.join(std_dir, file))
-        for i in range(len(tmplist)):
-            a = str(tmplist[i])
-            a = a.replace("\\","/")
-            flist.append(a)
-        return flist
+        tmplist.extend(os.path.join(std_dir, file) for file in os.listdir(std_dir))
+
+    for item in tmplist:
+        a = str(item)
+        a = a.replace("\\","/")
+        flist.append(a)
+    return flist
 
 def download_files(url,name,token):
     """
@@ -133,13 +125,12 @@ def download_files(url,name,token):
     r = rq.get(url,auth=(name, token))
     count = 1
     if r.status_code != rq.codes.ok:
-        assert False, "Status code error: {}.".format(r.status_code)
+        assert False, f"Status code error: {r.status_code}."
     r = r.json()
-    fls_link_to_download = []
-    for i in r:
-        fls_link_to_download.append(
-            {"name": i.get("path"), "download_url": i.get("download_url")}
-        )
+    fls_link_to_download = [
+        {"name": i.get("path"), "download_url": i.get("download_url")}
+        for i in r
+    ]
     for i in fls_link_to_download:
         r = rq.get(i.get("download_url"))
         try:
@@ -192,7 +183,7 @@ def upload(env: GitApiParams):
     """
     try:
         for fname in env.fnames:
-            url = env.url + "/" + fname  # makes dir if fname has dir
+            url = f"{env.url}/{fname}"
             fields = {
                     "message": "commit from upload()",
                     "committer": {
@@ -238,7 +229,7 @@ def upload_by_name(env: GitApiParams, name):
             return
         else:
             fname = search
-            url = env.url + "/" + fname  # makes dir if fname has dir
+            url = f"{env.url}/{fname}"
             fields = {
                 "message": "commit from upload()",
                 "committer": {"name": env.who_work_now, "email": env.who_work_now_mail},
@@ -310,11 +301,11 @@ def load_git_content(env):
         for i in req.json():
             if i.get("type") == "file":
                 __files.append(i.get("name"))
-                content.update({"files": __files})
+                content["files"] = __files
 
             elif i.get("type") == "dir":
                 __dirs.append(i.get("url"))
-                content.update({"dirs": __dirs})
+                content["dirs"] = __dirs
         return content
     except Exception as e:
         print(e)
@@ -334,7 +325,7 @@ def start(env: Any):
         window = sg.Window("Dataset control", layout)
         while True:
             event, values = window.read()
-            if event == sg.WIN_CLOSED or event == "Close":
+            if event in [sg.WIN_CLOSED, "Close"]:
                 break
             elif event == "Upload":
                 add(env)
